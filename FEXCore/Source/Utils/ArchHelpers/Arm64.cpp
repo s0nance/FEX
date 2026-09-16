@@ -704,6 +704,7 @@ static void IosLogUnimplementedCASPAL(uint32_t Size, uint64_t* GPRs, uint32_t Ad
    * which we DUAL-MAP (RW alias + RX alias). Aliased mappings are exactly where atomics
    * can fault despite correct alignment. Report what the region actually is, so "guest
    * data in a dual-mapped pool page" is distinguishable from ordinary private memory. */
+#ifdef _WIN32
   MEMORY_BASIC_INFORMATION mbi {};
   const char* type = "?";
   if (VirtualQuery(reinterpret_cast<LPCVOID>(GPRs[AddressReg]), &mbi, sizeof(mbi))) {
@@ -714,6 +715,19 @@ static void IosLogUnimplementedCASPAL(uint32_t Size, uint64_t* GPRs, uint32_t Ad
                     Size, AddressReg, GPRs[AddressReg], GPRs[AddressReg] & 15,
                     (GPRs[AddressReg] & 15) ? "yes" : "no", mbi.BaseAddress, mbi.RegionSize,
                     mbi.Protect, type, mbi.State);
+#else
+  /* iOS-Madeira 2026-09-16: VirtualQuery, MEMORY_BASIC_INFORMATION, MEM_IMAGE and
+   * MEM_MAPPED are Win32; this probe was written for the ARM64EC PE build and had
+   * no guard, so FEXCore did not compile for the iOS host at all. The
+   * instruction-side facts -- which are what decide whether this is the unaligned
+   * CAS case -- need no region query, so they are still reported here. The region
+   * type, which is what distinguishes a dual-mapped pool page from ordinary private
+   * memory, is Win32-only for now; the Mach equivalent is mach_vm_region. */
+  LogMan::Msg::EFmt("[caspal128] MISALIGNED-UNSUPPORTED Size={} addrReg=x{} addr={:#x} misalign={} "
+                    "crosses16B={} | region info unavailable (no VirtualQuery outside Win32)",
+                    Size, AddressReg, GPRs[AddressReg], GPRs[AddressReg] & 15,
+                    (GPRs[AddressReg] & 15) ? "yes" : "no");
+#endif
 }
 
 static bool HandleCASPAL(uint32_t Instr, uint64_t* GPRs, uint32_t* StrictSplitLockMutex) {

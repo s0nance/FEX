@@ -1397,6 +1397,21 @@ uintptr_t ContextImpl::CompileBlock(FEXCore::Core::CpuStateFrame* Frame, uint64_
   }
 #endif
 
+#ifdef FEX_IOS_HOST
+  /* iOS-Madeira 2026-09-16: these two reporters are ARM64EC-only, and were
+   * missing this guard. Both of the buffers they read are defined only under
+   * #ifdef FEX_IOS_HOST -- IosCbEntryLog in Dispatcher.cpp, IosFfsBypassLog in
+   * Source/Windows/ARM64EC/Module.cpp, a directory the root CMakeLists skips
+   * entirely on APPLE -- and so are their declarations above. Only the uses
+   * were unconditional, so FEXCore compiled for the iOS host (where __APPLE__
+   * is set but FEX_IOS_HOST is not) failed with "use of undeclared identifier
+   * IosFfsBypassLog". That means this file has not been built for the iOS host
+   * since these reporters landed: FEX/build-ios is older than they are.
+   *
+   * Guarding the uses rather than widening the declarations is the correct
+   * direction. IosFfsBypassLog has no definition at all in an Apple build, so
+   * declaring it there would only move the failure from the compiler to the
+   * linker. The ARM64EC build is unaffected. */
   /* iOS-Madeira ml304 (task #51): REPORT CallbackPtr ENTRY ON ITS OWN, not via the bogus-RIP path.
    *
    * ml302 proved the JITCallback prologue writes the bad State.rip, and ml303 added an LR witness --
@@ -1447,6 +1462,7 @@ uintptr_t ContextImpl::CompileBlock(FEXCore::Core::CpuStateFrame* Frame, uint64_
                         IosCbEntryLog[4], IosCbEntryLog[5], IosCbEntryLog[7]);
     }
   }
+#endif  /* FEX_IOS_HOST */
 
   /* iOS-Madeira: refuse to compile obviously-invalid guest RIPs. After a
    * NULL-vtable virtual call (`call [rax+8]` with rax=0), control flow
