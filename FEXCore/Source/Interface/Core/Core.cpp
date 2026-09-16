@@ -1903,6 +1903,16 @@ uintptr_t ContextImpl::CompileBlock(FEXCore::Core::CpuStateFrame* Frame, uint64_
                         Frame ? Frame->State.L1Mask : 0,
                         (T && T->LookupCache) ? T->LookupCache->GetL1Pointer() : 0);
 
+#ifdef FEX_IOS_HOST
+      /* iOS-Madeira 2026-09-16: ARM64EC-only, and this was missing its guard.
+       * rpm_cas_snapshot_take lives in External/rpmalloc/rpmalloc/rpmalloc.c,
+       * and CMakeLists.txt:331 sets ENABLE_FEX_ALLOCATOR FALSE on Apple
+       * ("Disable Linux-specific allocators on Apple platforms"), so rpmalloc
+       * is never added as a subdirectory there and the symbol has no
+       * definition. The call compiled fine and failed at the app link with
+       * "Undefined symbols: _rpm_cas_snapshot_take, referenced from
+       * ContextImpl::CompileBlock". The declaration above stays unguarded --
+       * a struct and a prototype reference no symbol. */
       /* iOS-Madeira ml622: drain the rpmalloc remote-free CAS snapshot HERE —
        * outside rpmalloc, where formatting is safe. The allocator side only ever
        * copies scalars into a POD and sets a flag; it must never format, because
@@ -1927,6 +1937,7 @@ uintptr_t ContextImpl::CompileBlock(FEXCore::Core::CpuStateFrame* Frame, uint64_
                             Snap.fail_changed, Snap.fail_unchanged, Snap.fail_invalid);
         }
       }
+#endif  /* FEX_IOS_HOST */
     }
   }
 
